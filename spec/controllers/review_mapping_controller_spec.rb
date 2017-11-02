@@ -1,22 +1,21 @@
 require 'rails_helper'
 describe ReviewMappingController do
-  let(:assignment) { double('Assignment', id: 1) }
+  let(:assignment) {double('Assignment', id: 1)}
   let(:review_response_map) do
     double('ReviewResponseMap', id: 1, map_id: 1, assignment: assignment,
-                                reviewer: double('Participant', id: 1, name: 'reviewer'), reviewee: double('Participant', id: 2, name: 'reviewee'))
+           reviewer: double('Participant', id: 1, name: 'reviewer'), reviewee: double('Participant', id: 2, name: 'reviewee'))
   end
   let(:metareview_response_map) do
     double('MetareviewResponseMap', id: 1, map_id: 1, assignment: assignment,
-                                    reviewer: double('Participant', id: 1, name: 'reviewer'), reviewee: double('Participant', id: 2, name: 'reviewee'))
+           reviewer: double('Participant', id: 1, name: 'reviewer'), reviewee: double('Participant', id: 2, name: 'reviewee'))
   end
-  let(:participant) { double('AssignmentParticipant', id: 1, can_review: false, user: double('User', id: 1)) }
-  let(:participant1) { double('AssignmentParticipant', id: 2, can_review: true, user: double('User', id: 2)) }
-  let(:user) { double('User', id: 3) }
-  let(:participant2) { double('AssignmentParticipant', id: 3, can_review: true, user: user) }
-  let(:team) { double('AssignmentTeam', name: 'no one') }
-  let(:team1) { double('AssignmentTeam', name: 'no one1') }
-  let(:resp) { double('Response', is_submitted: false) }
-
+  let(:participant) {double('AssignmentParticipant', id: 1, can_review: false, user: double('User', id: 1))}
+  let(:participant1) {double('AssignmentParticipant', id: 2, can_review: true, user: double('User', id: 2))}
+  let(:user) {double('User', id: 3)}
+  let(:participant2) {double('AssignmentParticipant', id: 3, can_review: true, user: user)}
+  let(:team) {double('AssignmentTeam', name: 'no one')}
+  let(:team1) {double('AssignmentTeam', name: 'no one1')}
+  let(:resp) {double('Response', is_submitted: false)}
 
 
   before(:each) do
@@ -28,11 +27,30 @@ describe ReviewMappingController do
 
   describe '#add_calibration' do
     context 'when both participant and review_response_map have already existed' do
-      it 'does not need to create new objects and redirects to responses#new maps'
+      it 'does not need to create new objects and redirects to responses#new maps' do
+        expect(AssignmentParticipant).to receive_message_chain("where.first").with(any_args).and_return(participant)
+        allow(participant).to receive(:nil?).and_return(false)
+        expect(ReviewResponseMap).to receive_message_chain("where.first").with(any_args).and_return(review_response_map)
+        params = {id: 1, team_id: 1}
+        session[:user] = user
+        post :add_calibration, params, session
+        expect(response).to redirect_to controller: 'response', action: 'new', id: review_response_map.id, assignment_id: params[:id], return: 'assignment_edit'
+      end
     end
 
     context 'when both participant and review_response_map have not been created' do
-      it 'creates new objects and redirects to responses#new maps'
+      it 'creates new objects and redirects to responses#new maps' do
+        expect(AssignmentParticipant).to receive_message_chain("where.first").with(any_args).and_return(participant)
+        allow(participant).to receive(:nil?).and_return(true)
+        expect(AssignmentParticipant).to receive(:create).with(any_args).and_return(participant)
+        expect(ReviewResponseMap).to receive_message_chain("where.first").with(any_args).and_return(review_response_map)
+        expect(review_response_map).to receive(:nil?).and_return(true)
+        expect(ReviewResponseMap).to receive(:create).with(any_args).and_return(review_response_map)
+        params = {id: 1, team_id: 1}
+        session[:user] = user
+        post :add_calibration, params, session
+        expect(response).to redirect_to controller: 'response', action: 'new', id: review_response_map.id, assignment_id: params[:id], return: 'assignment_edit'
+      end
     end
   end
 
@@ -46,7 +64,6 @@ describe ReviewMappingController do
         expect(flash[:error]) =~ /you cannot assign this student to review his.*her own artifact/i
         expect(response).to redirect_to action: 'list_mappings', id: assignment.id
       end
-
     end
 
     context 'when team_user exists and get_reviewer method returns a reviewer' do
@@ -111,21 +128,32 @@ describe ReviewMappingController do
 
   describe '#assign_quiz_dynamically' do
     context 'when corresponding response map exists' do
-      it 'shows a flash error and redirects to student_quizzes page'
-
+      it 'shows a flash error and redirects to student_quizzes page'do
+        expect(Assignment).to receive(:find).with(any_args).and_return(assignment)
+        expect(AssignmentParticipant).to receive_message_chain("where.first").with(any_args).and_return(participant)
+        expect(ResponseMap).to receive_message_chain("where.first").with(any_args).and_return(response)
+        get :assign_quiz_dynamically
+        expect(flash[:error]).to eq("You have already taken that quiz.")
+        expect(response).to redirect_to ('/student_quizzes?id='+participant.id.to_s)
+      end
     end
 
     context 'when corresponding response map does not exist' do
-      it 'creates a new QuizResponseMap and redirects to student_quizzes page'
-
+      it 'creates a new QuizResponseMap and redirects to student_quizzes page' do
+        expect(Assignment).to receive(:find).with(any_args).and_return(assignment)
+        expect(AssignmentParticipant).to receive_message_chain("where.first").with(any_args).and_return(participant)
+        expect(ResponseMap).to receive_message_chain("where.first").with(any_args).and_return(nil)
+        expect(QuizResponseMap).to receive(:new)
+        get :assign_quiz_dynamically
+        #expect(flash[:error]).to eq("You have already taken that quiz.")
+        expect(response).to redirect_to ('/student_quizzes?id='+participant.id.to_s)
+      end
     end
   end
 
   describe '#add_metareviewer' do
     it 'redirects to review_mapping#list_mappings page' do
-
     end
-
   end
 
   describe '#assign_metareviewer_dynamically' do
@@ -141,11 +169,32 @@ describe ReviewMappingController do
   describe '#delete_outstanding_reviewers' do
     context 'when review response map has corresponding responses' do
       it 'shows a flash error and redirects to review_mapping#list_mappings page' do
+        expect(Assignment).to receive(:find).with(any_args).and_return(assignment)
+        expect(AssignmentTeam).to receive(:find).with(any_args).and_return(team)
+        review_response_maps = double(id: 1)
+        expect(team).to receive(:review_mappings).with(any_args).and_return(review_response_maps)
+        num_remain_review_response_maps = double()
+        expect(review_response_maps).to receive(:size).and_return(2)
+        expect(review_response_maps).to receive(:each).with(any_args).and_yield(review_response_map)
+        expect(ReviewResponseMap).to receive_message_chain('find.destroy').with(any_args)
+        get :delete_outstanding_reviewers
+        expect(flash[:error]).to eq("1 reviewer(s) cannot be deleted because they have already started a review.")
       end
     end
 
     context 'when review response map does not have corresponding responses' do
-      it 'shows a flash success and redirects to review_mapping#list_mappings page'
+      it 'shows a flash success and redirects to review_mapping#list_mappings page' do
+        expect(Assignment).to receive(:find).with(any_args).and_return(assignment)
+        expect(AssignmentTeam).to receive(:find).with(any_args).and_return(team)
+        review_response_maps = double(id: 1)
+        expect(team).to receive(:review_mappings).with(any_args).and_return(review_response_maps)
+        num_remain_review_response_maps = double()
+        expect(review_response_maps).to receive(:size).and_return(-1)
+        expect(review_response_maps).to receive(:each).with(any_args).and_yield(review_response_map)
+        expect(ReviewResponseMap).to receive_message_chain('find.destroy').with(any_args)
+        get :delete_outstanding_reviewers
+        expect(flash[:success]).to eq("All review mappings for \"#{team.name}\" have been deleted.")
+      end
     end
   end
 
@@ -192,10 +241,10 @@ describe ReviewMappingController do
         expect(ReviewResponseMap).to receive(:find_by).and_return(review_response_map)
         expect(resp).to receive(:update_attribute).and_return(true)
         xhr :get, :unsubmit_review, format: :json
-         expect(flash.now[:success]).to eq("The review by \"" +
-                                          review_response_map.reviewer.name +
-                                           "\" for \"" + review_response_map.reviewee.name +
-                                           "\" has been unsubmitted.")
+        expect(flash.now[:success]).to eq("The review by \"" +
+                                              review_response_map.reviewer.name +
+                                              "\" for \"" + review_response_map.reviewee.name +
+                                              "\" has been unsubmitted.")
         expect(response).to render_template('unsubmit_review.js.erb')
       end
     end
@@ -207,10 +256,10 @@ describe ReviewMappingController do
         expect(resp).to receive(:update_attribute).and_return(false)
         xhr :get, :unsubmit_review, format: :json
         expect(flash.now[:error]).to eq("The review by \"" + review_response_map.reviewer.name +
-                                        "\" for \"" + review_response_map.reviewee.name +
-                                        "\" could not be unsubmitted.")
-      expect(response).to render_template('unsubmit_review.js.erb')
-    end
+                                            "\" for \"" + review_response_map.reviewee.name +
+                                            "\" could not be unsubmitted.")
+        expect(response).to render_template('unsubmit_review.js.erb')
+      end
     end
   end
 
@@ -223,7 +272,7 @@ describe ReviewMappingController do
         get :delete_reviewer
         expect(flash[:success]).to be_present
         expect(response).to redirect_to (:back)
-        end
+      end
     end
 
     context 'when corresponding response exists to current review response map' do
@@ -266,7 +315,16 @@ describe ReviewMappingController do
   end
 
   describe '#list_mappings' do
-    it 'renders review_mapping#list_mappings page'
+    it 'renders review_mapping#list_mappings page' do
+      params = {msg: 'error', id: 1}
+      expect(Assignment).to receive(:find).with(any_args).and_return(assignment)
+      items = double()
+      expect(AssignmentTeam).to receive(:where).with(any_args).and_return(items)
+      expect(items).to receive(:sort)
+      get :list_mappings, params
+      expect(flash[:error]).to eq(params[:msg])
+      expect(response).to render_template('review_mapping/list_mappings')
+    end
   end
 
   describe '#automatic_review_mapping' do
@@ -327,11 +385,10 @@ describe ReviewMappingController do
     it 'shows a note flash message and redirects to review_mapping#list_mappings page' do
       expect(Assignment).to receive(:find).and_return(assignment)
       allow(assignment).to receive(:assign_reviewers_staggered).with(any_args).and_return("check")
-      get :automatic_review_mapping_staggered,  id: assignment.id, assignment: {num_reviews: '1', num_metareviews:'2' }
+      get :automatic_review_mapping_staggered, id: assignment.id, assignment: {num_reviews: '1', num_metareviews: '2'}
       expect(flash[:note]).to be_present
       expect(response).to redirect_to ('/review_mapping/list_mappings?id=' +assignment.id.to_s)
-
-   end
+    end
   end
 
   describe 'response_report' do
@@ -412,5 +469,5 @@ describe ReviewMappingController do
       end
     end
   end
-  end
+end
 
